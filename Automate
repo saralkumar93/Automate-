@@ -1,0 +1,126 @@
+STEP 1: Gather Required Info
+
+Make sure you have:
+
+Rubrik IP or FQDN
+
+Rubrik username and password
+
+Report ID (get it from Rubrik UI under the report's URL or via API)
+
+Optional: SMTP server info to send the report via email
+
+
+
+---
+
+STEP 2: PowerShell Script
+
+Save this as Get-RubrikVMReport.ps1:
+
+# --- Configuration ---
+$rubrikIP = "https://<RUBRIK_IP_OR_FQDN>"
+$username = "<RUBRIK_USERNAME>"
+$password = "<RUBRIK_PASSWORD>"
+$reportID = "<RUBRIK_REPORT_ID>" # e.g., "abcd-1234-xyz"
+$date = Get-Date -Format "yyyy-MM-dd"
+$outputPath = "C:\Reports\rubrik_vm_report_$date.pdf"
+
+# Optional Email Settings
+$sendEmail = $true
+$smtpServer = "smtp.example.com"
+$fromEmail = "you@example.com"
+$toEmail = "recipient@example.com"
+
+# --- Ignore SSL cert errors (only if self-signed) ---
+add-type @"
+using System.Net;
+using System.Security.Cryptography.X509Certificates;
+public class TrustAllCertsPolicy : ICertificatePolicy {
+    public bool CheckValidationResult(ServicePoint srvPoint, X509Certificate certificate, WebRequest request, int certificateProblem) {
+        return true;
+    }
+}
+"@
+[System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
+
+# --- Create Auth Header ---
+$pair = "$username:$password"
+$bytes = [System.Text.Encoding]::ASCII.GetBytes($pair)
+$base64 = [Convert]::ToBase64String($bytes)
+$headers = @{
+    Authorization = "Basic $base64"
+}
+
+# --- Download the Report ---
+$reportUrl = "$rubrikIP/report/$reportID/download"
+
+try {
+    Invoke-RestMethod -Uri $reportUrl -Headers $headers -Method Get -OutFile $outputPath
+    Write-Output "Report saved to $outputPath"
+} catch {
+    Write-Error "Failed to download report: $_"
+    exit
+}
+
+# --- Send Email (Optional) ---
+if ($sendEmail) {
+    $msg = New-Object System.Net.Mail.MailMessage
+    $msg.From = $fromEmail
+    $msg.To.Add($toEmail)
+    $msg.Subject = "Rubrik Daily VM Report - $date"
+    $msg.Body = "Please find the attached Rubrik VM report."
+    $msg.Attachments.Add($outputPath)
+
+    $smtp = New-Object Net.Mail.SmtpClient($smtpServer)
+    try {
+        $smtp.Send($msg)
+        Write-Output "Email sent to $toEmail"
+    } catch {
+        Write-Error "Failed to send email: $_"
+    }
+}
+
+
+---
+
+STEP 3: Replace Placeholder Values
+
+Replace:
+
+<RUBRIK_IP_OR_FQDN>: e.g., rubrik01.corp.local
+
+<RUBRIK_USERNAME> and <RUBRIK_PASSWORD>
+
+<RUBRIK_REPORT_ID>: Found in Rubrik UI when you open the report page.
+
+
+Create the folder path (C:\Reports) or change $outputPath to a valid folder.
+
+
+---
+
+STEP 4: Run the Script
+
+From PowerShell:
+
+.\Get-RubrikVMReport.ps1
+
+
+---
+
+STEP 5: Schedule It (Optional)
+
+Use Task Scheduler:
+
+1. Open Task Scheduler.
+
+
+2. Create Basic Task > Trigger: Daily
+
+
+3. Action: Start a Program
+
+Program: powershell.exe
+
+Arguments: -ExecutionPolicy Bypass -File "C:\Path\To\Get-RubrikVMReport.ps1"
