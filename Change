@@ -1,0 +1,94 @@
+Here’s where you need to make changes in the script based on your actual environment:
+
+
+---
+
+1. Rubrik Cluster Information
+
+rubrik_url = "https://<rubrik-cluster-ip>"
+
+Change to your actual Rubrik cluster URL, for example:
+
+rubrik_url = "https://rubrik01.mycompany.com"
+
+
+---
+
+2. API Token
+
+auth_token = "<your-api-token>"
+
+Replace with a valid API token from the Rubrik UI:
+
+auth_token = "eyJhbGciOiJIUzI1..."
+
+Do not include Bearer in the token itself—it's already handled in the headers.
+
+
+---
+
+3. Report ID
+
+report_id = "<report-id>"
+
+You need to find the report ID either:
+
+From the Rubrik UI: Sometimes available in the URL after selecting a saved report.
+
+Or by API:
+
+
+curl -k -H "Authorization: Bearer <your-token>" https://rubrik-cluster/api/internal/report
+
+Once found:
+
+report_id = "123abc456def"
+
+
+---
+
+4. SMTP (Email) Settings
+
+smtp_server = "smtp.example.com"
+smtp_port = 587
+smtp_username = "smtp_user@example.com"
+smtp_password = "smtp_password"
+
+Replace with your actual SMTP email configuration, such as:
+
+smtp_server = "smtp.office365.com"
+smtp_port = 587
+smtp_username = "reportbot@yourcompany.com"
+smtp_password = "yourStrongPassword!"
+
+
+---
+
+5. Email Addresses
+
+email_sender = "sender@example.com"
+email_recipient = "recipient@example.com"
+
+Update with your email and the recipient's email:
+
+email_sender = "reportbot@yourcompany.com"
+email_recipient = "itmanager@yourcompany.com"
+
+
+---
+
+Optional: File Save Path
+
+If you want to save the report in a specific directory:
+
+save_dir = "/tmp"
+
+Can be changed to:
+
+save_dir = "C:/Reports"  # For Windows
+
+
+---
+
+Let me know if you want help getting the report ID via API or converting this to a Windows Task Scheduler format.
+
