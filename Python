@@ -1,0 +1,110 @@
+Step-by-Step Guide
+
+1. Prerequisites
+
+Rubrik user account with access to reports.
+
+API access enabled.
+
+(Optional) SMTP server details if emailing the report.
+
+Script host machine with Python or PowerShell.
+
+
+
+---
+
+2. Use the Rubrik REST API to Download the Report
+
+Rubrik reports can be accessed via API at:
+
+https://<rubrik_ip_or_dns>/report
+
+Rubrik API documentation:
+https://rubrikinc.github.io/api-documentation
+
+
+---
+
+3. Example Using Python
+
+a. Install Requests module
+
+pip install requests
+
+b. Python Script: Download & Email Rubrik VM Report
+
+import requests
+import json
+import smtplib
+from email.message import EmailMessage
+from datetime import datetime
+
+# Rubrik Cluster Info
+rubrik_ip = 'https://<RUBRIK_IP>'
+username = '<USERNAME>'
+password = '<PASSWORD>'
+
+# Report ID (obtain this via API or UI)
+report_id = '<VM_REPORT_ID>'
+output_file = f"rubrik_vm_report_{datetime.now().strftime('%Y-%m-%d')}.pdf"
+
+# Authenticate and get session token
+session = requests.Session()
+session.verify = False
+session.auth = (username, password)
+
+# Download the report
+report_url = f"{rubrik_ip}/report/{report_id}/download"
+response = session.get(report_url)
+
+if response.status_code == 200:
+    with open(output_file, 'wb') as f:
+        f.write(response.content)
+    print(f"Report saved as {output_file}")
+else:
+    print(f"Failed to download report: {response.status_code}")
+
+# (Optional) Email the report
+email_enabled = True
+if email_enabled:
+    msg = EmailMessage()
+    msg['Subject'] = 'Daily Rubrik VM Report'
+    msg['From'] = 'you@example.com'
+    msg['To'] = 'recipient@example.com'
+    msg.set_content('Attached is the daily VM report from Rubrik.')
+
+    with open(output_file, 'rb') as f:
+        msg.add_attachment(f.read(), maintype='application', subtype='pdf', filename=output_file)
+
+    with smtplib.SMTP('smtp.example.com') as server:
+        server.send_message(msg)
+        print("Email sent.")
+
+
+---
+
+4. Schedule the Script
+
+Windows: Use Task Scheduler.
+
+Linux: Use cron.
+
+
+Example cron job:
+
+0 7 * * * /usr/bin/python3 /path/to/rubrik_vm_report.py
+
+
+---
+
+5. Get Report ID (Optional)
+
+You can list all reports via API:
+
+GET https://<rubrik_ip>/report
+
+Look for the report with name like "VM Protection" and note its id.
+
+
+---
