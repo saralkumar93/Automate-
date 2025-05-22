@@ -1,0 +1,92 @@
+from azure.identity import DefaultAzureCredential
+from azure.monitor.query import LogsQueryClient, LogsQueryStatus
+import pandas as pd
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email import encoders
+import os
+
+# Set these variables
+workspace_id = "<YOUR_LOG_ANALYTICS_WORKSPACE_ID>"
+email_sender = "your@email.com"
+email_receiver = "recipient@email.com"
+smtp_server = "smtp.yourdomain.com"
+smtp_port = 587
+smtp_user = "your@email.com"
+smtp_password = "yourpassword"  # Consider using a secure method for storing credentials
+
+# Kusto query for Azure Backup reports
+kusto_query = """
+BackupItemReport
+| where TimeGenerated > ago(1d)
+| project TimeGenerated, SubscriptionId, VaultName, BackupInstanceName, BackupStatus, DurationMs
+"""
+
+# Authenticate
+credential = DefaultAzureCredential()
+client = LogsQueryClient(credential)
+
+# Run query
+response = client.query_workspace(
+    workspace_id=workspace_id,
+    query=kusto_query,
+    timespan=None
+)
+
+# Process response
+if response.status == LogsQueryStatus.SUCCESS:
+    table = response.tables[0]
+    df = pd.DataFrame(table.rows, columns=[col.name for col in table.columns])
+    file_path = "azure_backup_report.csv"
+    df.to_csv(file_path, index=False)
+    print(f"Backup report saved to {file_path}")
+else:
+    print("Query failed.")
+    exit()
+
+# Send email
+msg = MIMEMultipart()
+msg['From'] = email_sender
+msg['To'] = email_receiver
+msg['Subject'] = 'Azure Backup Daily Report'
+
+# Attach CSV
+part = MIMEBase('application', "octet-stream")
+with open(file_path, 'rb') as file:
+    part.set_payload(file.read())
+encoders.encode_base64(part)
+part.add_header('Content-Disposition', f'attachment; filename="{os.path.basename(file_path)}"')
+msg.attach(part)
+
+# Send via SMTP
+try:
+    server = smtplib.SMTP(smtp_server, smtp_port)
+    server.starttls()
+    server.login(smtp_user, smtp_password)
+    server.sendmail(email_sender, email_receiver, msg.as_string())
+    server.quit()
+    print("Email sent successfully.")
+except Exception as e:
+    print(f"Failed to send email: {e}")
+
+
+
+
+
+ Security Tips
+Avoid hardcoding SMTP credentials in production.
+
+Use Azure Key Vault, .env files, or a secure credential store.
+
+If using this in a serverless environment (like Azure Functions), use managed identities.
+
+Would you like a version that:
+
+Runs as an Azure Function on a timer?
+
+Exports the report to PDF instead of CSV?
+
+Sends to multiple recipients or integrates with Teams?
+
+Let me know
