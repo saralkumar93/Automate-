@@ -1,0 +1,149 @@
+# ================================================
+# CONFIGURATION
+# ================================================
+$TenantId       = "<your-tenant-id>"
+$ClientId       = "<your-client-id>"
+$ClientSecret   = "<your-client-secret>"
+$SubscriptionId = "<your-subscription-id>"
+$EmailRecipient = "<recipient@example.com>"
+$SendByEmail    = $true        # Set $false if you only want OneDrive upload
+$SaveToOneDrive = $true        # Set $false if you only want to email
+$ReportFileName = "AzureDailyUsage_$(Get-Date -Format 'yyyyMMdd').csv"
+$ReportPath     = "C:\Reports\$ReportFileName"
+
+# ================================================
+# STEP 1: LOGIN TO AZURE
+# ================================================
+# Install required modules if needed
+if (-not (Get-Module -ListAvailable -Name Az)) {
+    Install-Module -Name Az -Force -Scope CurrentUser -AllowClobber
+}
+if (-not (Get-Module -ListAvailable -Name Microsoft.Graph)) {
+    Install-Module -Name Microsoft.Graph -Force -Scope CurrentUser -AllowClobber
+}
+
+# Convert secret and login
+$SecureSecret = ConvertTo-SecureString $ClientSecret -AsPlainText -Force
+$Cred = New-Object System.Management.Automation.PSCredential($ClientId, $SecureSecret)
+Connect-AzAccount -ServicePrincipal -Credential $Cred -Tenant $TenantId
+Set-AzContext -SubscriptionId $SubscriptionId
+
+# ================================================
+# STEP 2: GET DAILY USAGE REPORT
+# ================================================
+$StartDate = (Get-Date).AddDays(-1).ToString("yyyy-MM-dd")
+$EndDate   = (Get-Date).ToString("yyyy-MM-dd")
+
+$Usage = Get-AzConsumptionUsageDetail -StartDate $StartDate -EndDate $EndDate
+if (!(Test-Path "C:\Reports")) {
+    New-Item -Path "C:\Reports" -ItemType Directory | Out-Null
+}
+$Usage | Export-Csv -Path $ReportPath -NoTypeInformation
+Write-Output "✅ Report saved to: $ReportPath"
+
+# ================================================
+# STEP 3: CONNECT TO MICROSOFT GRAPH
+# ================================================
+Connect-MgGraph -ClientId $ClientId -TenantId $TenantId -ClientSecret $ClientSecret -Scopes "Files.ReadWrite.All", "Mail.Send"
+
+# Get file content
+$FileName = Split-Path -Path $ReportPath -Leaf
+$FileBytes = [System.IO.File]::ReadAllBytes($ReportPath)
+$Base64Content = [Convert]::ToBase64String($FileBytes)
+
+# ================================================
+# STEP 4: UPLOAD TO ONEDRIVE (OPTIONAL)
+# ================================================
+if ($SaveToOneDrive) {
+    try {
+        $Upload = New-MgDriveItemContent -DriveId "me" -DriveItemId "root" -FileName $FileName -BodyParameter $FileBytes
+        Write-Output "✅ File uploaded to OneDrive successfully."
+    } catch {
+        Write-Error "❌ OneDrive upload failed: $_"
+    }
+}
+
+# ================================================
+# STEP 5: SEND EMAIL (OPTIONAL)
+# ================================================
+if ($SendByEmail) {
+    try {
+        $EmailParams = @{
+            Message = @{
+                Subject = "Azure Daily Usage Report - $(Get-Date -Format 'yyyy-MM-dd')"
+                Body = @{
+                    ContentType = "Text"
+                    Content = "Attached is your Azure daily usage report."
+                }
+                ToRecipients = @(@{ EmailAddress = @{ Address = $EmailRecipient } })
+                Attachments = @(
+                    @{
+                        "@odata.type" = "#microsoft.graph.fileAttachment"
+                        Name = $FileName
+                        ContentBytes = $Base64Content
+                    }
+                )
+            }
+            SaveToSentItems = $true
+        }
+
+        Send-MgUserMail -UserId "me" -BodyParameter $EmailParams
+        Write-Output "✅ Email sent to $EmailRecipient."
+    } catch {
+        Write-Error "❌ Email sending failed: $_"
+    }
+}
+changes
+
+$TenantId       = "<your-tenant-id>"
+$ClientId       = "<your-client-id>"
+$ClientSecret   = "<your-client-secret>"
+$SubscriptionId = "<your-subscription-id>"
+$EmailRecipient = "<recipient@example.com>"
+
+What Each Variable Means & Where to Find It
+Variable	What it is	Where to get it
+$TenantId	Your Azure Active Directory (AAD) tenant ID	Azure Portal → Azure Active Directory → Overview → Tenant ID
+$ClientId	The App Registration's Application (client) ID	Azure Portal → App registrations → Your app → Overview → Client ID
+$ClientSecret	Secret/password for your App Registration	Azure Portal → Certificates & secrets → New client secret
+$SubscriptionId	Your Azure subscription ID	Azure Portal → Subscriptions → Select your subscription → Subscription ID
+$EmailRecipient	The email address you want to send the report to	e.g., "you@example.com"
+
+✅ Optional Settings
+These two control automation behavior:
+
+powershell
+Copy
+Edit
+$SendByEmail    = $true        # Set $false if you only want OneDrive upload
+$SaveToOneDrive = $true        # Set $false if you only want to email
+Set them as follows depending on what you want:
+
+Goal	Setting
+Only upload to OneDrive	$SendByEmail = $false; $SaveToOneDrive = $true
+Only send via email	$SendByEmail = $true; $SaveToOneDrive = $false
+Do both (default)	Both set to $true
+
+🔐 Required Permissions for the App
+In your App Registration (Azure Portal), make sure it has:
+
+API permissions (admin consented):
+
+Azure Service Management – user_impersonation
+
+Microsoft Graph:
+
+Files.ReadWrite.All
+
+Mail.Send
+
+Would you like help confirming or setting up the App Registration in Azure? I can walk you through it.
+
+
+
+
+
+
+
+
+
