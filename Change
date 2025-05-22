@@ -85,10 +85,103 @@ save_dir = "/tmp"
 
 Can be changed to:
 
-save_dir = "C:/Reports"  # For Windows
+save_dir = "C:/Reports
+-----------------
+Part 2: Automate Report Download Using Rubrik API
+
+1. Generate API Token
+
+1. Go to your profile in the Rubrik portal.
+
+
+2. Generate an API token (or use basic auth with username/password if token-based isn't enabled).
+
+
+
+2. Install Required Tools
+
+Install Python and required libraries:
+
+pip install requests
 
 
 ---
 
-Let me know if you want help getting the report ID via API or converting this to a Windows Task Scheduler format.
+3. Python Script to Download the Report
+
+import requests
+import json
+from datetime import datetime
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.application import MIMEApplication
+from email.mime.multipart import MIMEMultipart
+
+# Configurations
+rubrik_url = "https://<rubrik-cluster-ip>"  # No trailing slash
+auth_token = "<your-api-token>"  # Use token or use (username, password) for basic auth
+report_id = "<report-id>"  # Get from UI or API
+report_name = "Daily_VM_Report"
+save_path = f"/tmp/{report_name}_{datetime.now().date()}.pdf"
+email_recipient = "recipient@example.com"
+email_sender = "sender@example.com"
+smtp_server = "smtp.example.com"
+
+# Download report
+headers = {
+    "Authorization": f"Bearer {auth_token}",
+    "Accept": "application/json"
+}
+
+export_url = f"{rubrik_url}/report/{report_id}/download?format=PDF"
+
+response = requests.get(export_url, headers=headers, verify=False)
+
+with open(save_path, "wb") as f:
+    f.write(response.content)
+
+# Send report as email
+msg = MIMEMultipart()
+msg['From'] = email_sender
+msg['To'] = email_recipient
+msg['Subject'] = "Daily Rubrik VM Report"
+
+body = MIMEText("Please find attached the daily VM report from Rubrik.", 'plain')
+msg.attach(body)
+
+with open(save_path, "rb") as f:
+    attachment = MIMEApplication(f.read(), _subtype="pdf")
+    attachment.add_header('Content-Disposition', 'attachment', filename=save_path.split('/')[-1])
+    msg.attach(attachment)
+
+with smtplib.SMTP(smtp_server) as server:
+    server.send_message(msg)
+
+
+---
+
+Part 3: Automate with a Scheduler
+
+Linux: Use cron job
+
+crontab -e
+# Add line to run every day at 8 AM
+0 8 * * * /usr/bin/python3 /path/to/rubrik_report_script.py
+
+Windows: Use Task Scheduler to run the Python script daily.
+
+
+
+---
+
+Optional: Find Report ID via Rubrik API
+
+Use the API to list reports:
+
+curl -k -H "Authorization: Bearer <token>" https://<rubrik-cluster>/report
+
+Look for your VM report and copy the report ID.
+
+
+
 
